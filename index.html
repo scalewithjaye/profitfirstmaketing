@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -476,7 +476,7 @@
       bottom: 20px;
       right: 20px;
       width: 380px;
-      max-height: 600px;
+      max-height: 60px; /* Start minimized */
       background: #ffffff;
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -485,6 +485,11 @@
       flex-direction: column;
       z-index: 1000;
       transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .ai-chat-box.expanded {
+      max-height: 500px;
     }
 
     .ai-chat-box.minimized {
@@ -861,8 +866,8 @@
     <!-- AI Chat Box -->
     <div class="ai-chat-box" id="aiChatBox">
       <div class="ai-chat-header" onclick="toggleAIChat()">
-        <h4 id="aiChatTitle">Need Help? Ask Claude</h4>
-        <button class="ai-chat-toggle" id="aiChatToggle">−</button>
+        <h4 id="aiChatTitle">Metrics have you stumped? Ask Claude.</h4>
+        <button class="ai-chat-toggle" id="aiChatToggle">+</button>
       </div>
       <div class="ai-chat-messages" id="aiChatMessages">
         <div class="ai-message assistant">
@@ -1156,16 +1161,28 @@
       form.action = MAILCHIMP_URL;
       form.target = 'mailchimp-iframe';
 
-      // Add fields (Mailchimp field names - you may need to adjust these)
+      // Add fields matching YOUR Mailchimp merge tags
       const fields = {
         'EMAIL': leadData.email,
         'FNAME': leadData.name.split(' ')[0] || '',
-        'LNAME': leadData.name.split(' ').slice(1).join(' ') || '',
-        'COMPANY': leadData.company,
-        'MMERGE4': leadData.monthlySpend, // Custom field - adjust merge tag as needed
-        'MMERGE5': '$' + leadData.totalAuditSpend.toLocaleString(), // Custom field
-        'MMERGE6': leadData.channelCount + ' channels' // Custom field
+        'LNAME': leadData.name.split(' ').slice(1).join(' ') || ''
       };
+      
+      // Custom fields - using YOUR merge tags from Mailchimp
+      if (leadData.company) {
+        fields['COMPANY'] = leadData.company;
+      }
+      if (leadData.monthlySpend) {
+        fields['MMERGE4'] = leadData.monthlySpend;
+      }
+      if (leadData.totalAuditSpend > 0) {
+        fields['MMERGE5'] = '$' + leadData.totalAuditSpend.toLocaleString();
+      }
+      if (leadData.channelCount > 0) {
+        fields['MMERGE6'] = leadData.channelCount + ' channels';
+      }
+      
+      console.log('Sending to Mailchimp:', fields);
 
       for (const [name, value] of Object.entries(fields)) {
         const input = document.createElement('input');
@@ -1341,6 +1358,10 @@
     }
 
     async function generateAIInsights() {
+      console.log('Starting generateAIInsights...');
+      console.log('businessData:', businessData);
+      console.log('results:', results);
+      
       try {
         const prompt = `You are an expert fractional CMO analyzing marketing audit data for a D2C ecommerce brand. 
 
@@ -1449,6 +1470,8 @@ Format your response as a JSON object with this structure:
 
 Be specific with numbers. Reference their actual data. Be direct and actionable. Respond ONLY with valid JSON - no markdown, no code blocks.`;
 
+        console.log('Sending request to API_URL:', API_URL);
+        
         const response = await fetch(API_URL, {
           method: "POST",
           headers: {
@@ -1460,17 +1483,36 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
           })
         });
 
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API Error Response:', errorText);
+          throw new Error(`API error: ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('API Response data:', data);
+        
+        if (!data.content || !data.content[0]) {
+          console.error('Invalid response structure:', data);
+          throw new Error('Invalid API response structure');
+        }
+        
         let aiResponse = data.content[0].text;
         
         // Remove markdown code blocks if present
         aiResponse = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        
+        console.log('Cleaned AI response:', aiResponse.substring(0, 200) + '...');
         
         const analysis = JSON.parse(aiResponse);
         aiInsightsData = analysis;
         displayAIAnalysis(analysis);
       } catch (error) {
         console.error('Error generating AI insights:', error);
+        console.error('Error details:', error.message);
         // Fallback to rule-based insights
         const fallbackInsights = generateInsights(results.channelResults, results.avgCacLtvRatio);
         displayFallbackInsights(fallbackInsights);
@@ -2083,7 +2125,7 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
 
     // AI Chat Functions
     let chatHistory = [];
-    let isChatMinimized = false;
+    let isChatMinimized = true; // Start minimized
 
     function toggleAIChat() {
       const chatBox = document.getElementById('aiChatBox');
@@ -2091,10 +2133,10 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
       isChatMinimized = !isChatMinimized;
       
       if (isChatMinimized) {
-        chatBox.classList.add('minimized');
+        chatBox.classList.remove('expanded');
         toggle.textContent = '+';
       } else {
-        chatBox.classList.remove('minimized');
+        chatBox.classList.add('expanded');
         toggle.textContent = '−';
       }
     }
@@ -2105,7 +2147,7 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
         (document.getElementById('step2').classList.contains('hidden') ? 'results' : 'step2') : 'step1';
       
       if (currentStep === 'step1') {
-        title.textContent = 'Need Help? Ask Claude';
+        title.textContent = 'Metrics have you stumped? Ask Claude.';
       } else if (currentStep === 'step2') {
         title.textContent = 'Need Help? Ask Claude';
       } else {
