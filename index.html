@@ -1123,6 +1123,8 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    let currentLeadData = null; // Store lead data for notification
+    
     async function handleEmailSubmit(event) {
       event.preventDefault();
       
@@ -1131,7 +1133,7 @@
       submitBtn.textContent = 'Processing...';
       submitBtn.disabled = true;
 
-      const leadData = {
+      currentLeadData = {
         name: document.getElementById('leadName').value,
         email: document.getElementById('leadEmail').value,
         company: document.getElementById('leadCompany').value || '',
@@ -1142,22 +1144,62 @@
 
       try {
         // Send to Mailchimp using their embedded form approach
-        await sendToMailchimp(leadData);
+        await sendToMailchimp(currentLeadData);
         
         // Show results and restore chat box
         document.getElementById('emailGate').classList.add('hidden');
         document.getElementById('aiChatBox').style.display = 'flex';
         calculateAndShowResults();
+        
+        // Send notification email (don't await - let it run in background)
+        sendNotificationEmail();
       } catch (error) {
         console.error('Error submitting lead:', error);
         // Still show results even if email capture fails
         document.getElementById('emailGate').classList.add('hidden');
         document.getElementById('aiChatBox').style.display = 'flex';
         calculateAndShowResults();
+        
+        // Still try to send notification
+        sendNotificationEmail();
       }
 
       submitBtn.textContent = originalText;
       submitBtn.disabled = false;
+    }
+    
+    async function sendNotificationEmail() {
+      if (!currentLeadData) return;
+      
+      try {
+        // Send to notification endpoint
+        const notifyUrl = API_URL.replace('/claude', '/notify');
+        
+        const response = await fetch(notifyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadData: currentLeadData,
+            auditSummary: {
+              totalSpend: results.totalSpend,
+              totalRevenue: results.totalRevenue,
+              totalProfit: results.totalProfit,
+              avgCacLtvRatio: results.avgCacLtvRatio
+            },
+            channelResults: results.channelResults,
+            aiInsights: aiInsightsData
+          })
+        });
+        
+        if (response.ok) {
+          console.log('Notification email sent successfully');
+        } else {
+          console.error('Failed to send notification:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error sending notification email:', error);
+        // Don't break the user experience if notification fails
+      }
     }
 
     async function sendToMailchimp(leadData) {
@@ -2279,3 +2321,4 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
   </script>
 </body>
 </html>
+
