@@ -1151,8 +1151,7 @@
         document.getElementById('aiChatBox').style.display = 'flex';
         calculateAndShowResults();
         
-        // Send notification email (don't await - let it run in background)
-        sendNotificationEmail();
+        // Note: sendNotificationEmail() is now called AFTER AI insights complete
       } catch (error) {
         console.error('Error submitting lead:', error);
         // Still show results even if email capture fails
@@ -1160,8 +1159,7 @@
         document.getElementById('aiChatBox').style.display = 'flex';
         calculateAndShowResults();
         
-        // Still try to send notification
-        sendNotificationEmail();
+        // Note: sendNotificationEmail() is now called AFTER AI insights complete
       }
 
       submitBtn.textContent = originalText;
@@ -1553,12 +1551,18 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
         const analysis = JSON.parse(aiResponse);
         aiInsightsData = analysis;
         displayAIAnalysis(analysis);
+        
+        // Send notification email AFTER AI insights are ready
+        sendNotificationEmail();
       } catch (error) {
         console.error('Error generating AI insights:', error);
         console.error('Error details:', error.message);
         // Fallback to rule-based insights
         const fallbackInsights = generateInsights(results.channelResults, results.avgCacLtvRatio);
         displayFallbackInsights(fallbackInsights);
+        
+        // Still send notification even with fallback insights
+        sendNotificationEmail();
       }
     }
 
@@ -2321,4 +2325,5 @@ Be specific with numbers. Reference their actual data. Be direct and actionable.
   </script>
 </body>
 </html>
+
 
